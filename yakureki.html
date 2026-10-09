@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>薬歴メモ</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="薬歴メモ">
+<meta name="theme-color" content="#2f6fed">
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#ffffff; --border:#dfe3e8; --text:#222;
+    --accent:#2f6fed; --accent-dark:#1f52c0; --muted:#777;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family:"Hiragino Kaku Gothic ProN","Meiryo",sans-serif;
+    background:var(--bg); color:var(--text); margin:0; padding:0;
+  }
+  header{
+    background:var(--accent); color:#fff; padding:14px 20px;
+    display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;
+  }
+  header h1{font-size:18px; margin:0;}
+  header .tools button{
+    background:#ffffff22; border:1px solid #ffffff55; color:#fff;
+    padding:6px 10px; border-radius:6px; cursor:pointer; font-size:12px; margin-left:6px;
+  }
+  header .tools button:hover{background:#ffffff3a;}
+  .layout{display:flex; height:calc(100vh - 56px); min-height:500px;}
+  .sidebar{
+    width:280px; background:var(--card); border-right:1px solid var(--border);
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  .sidebar .search{padding:10px; border-bottom:1px solid var(--border);}
+  .sidebar .search input{width:100%; padding:8px; border:1px solid var(--border); border-radius:6px; font-size:13px;}
+  .sidebar .add-btn{
+    margin:10px; padding:8px; background:var(--accent); color:#fff; border:none;
+    border-radius:6px; cursor:pointer; font-size:13px;
+  }
+  .sidebar .add-btn:hover{background:var(--accent-dark);}
+  .patient-list{flex:1; overflow-y:auto;}
+  .patient-item{
+    padding:10px 14px; border-bottom:1px solid #eee; cursor:pointer; font-size:13px;
+  }
+  .patient-item:hover{background:#eef3ff;}
+  .patient-item.active{background:#dfeaff; border-left:3px solid var(--accent);}
+  .patient-item .name{font-weight:bold;}
+  .patient-item .sub{color:var(--muted); font-size:11px; margin-top:2px;}
+  .patient-item .match-note{color:var(--accent); font-size:11px; margin-top:2px;}
+  .main{flex:1; padding:20px; overflow-y:auto;}
+  .empty-hint{color:var(--muted); text-align:center; margin-top:80px; font-size:14px;}
+  .patient-header{
+    display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;
+    background:var(--card); padding:14px 16px; border-radius:8px; border:1px solid var(--border);
+  }
+  .patient-header .info{font-size:13px; color:var(--muted); margin-top:4px;}
+  .patient-header .info-line{font-size:13px; color:var(--muted); margin-top:4px;}
+  .patient-header .info-line .info-label{color:#555; font-weight:bold;}
+  .patient-header .alert-line{
+    font-size:13px; font-weight:bold; color:#c0392b; background:#fdecea;
+    padding:4px 8px; border-radius:4px; margin-top:6px;
+  }
+  .patient-header .name{font-size:20px; font-weight:bold;}
+  .patient-header button{
+    background:none; border:1px solid var(--border); border-radius:6px; padding:6px 10px;
+    cursor:pointer; font-size:12px; color:#555; margin-left:6px;
+  }
+  .patient-header button:hover{background:#f0f0f0;}
+  .record-form{
+    background:var(--card); border:1px solid var(--border); border-radius:8px;
+    padding:14px 16px; margin-bottom:18px;
+  }
+  .record-form label{display:block; font-size:12px; color:var(--muted); margin-bottom:4px; margin-top:10px;}
+  .record-form label:first-child{margin-top:0;}
+  .record-form input[type=date], .record-form textarea{
+    width:100%; padding:8px; border:1px solid var(--border); border-radius:6px; font-size:13px;
+    font-family:inherit; resize:vertical;
+  }
+  .record-form textarea{min-height:70px;}
+  .record-form .save-btn{
+    margin-top:12px; background:var(--accent); color:#fff; border:none; padding:9px 18px;
+    border-radius:6px; cursor:pointer; font-size:13px;
+  }
+  .record-form .save-btn:hover{background:var(--accent-dark);}
+  .record-list h3{font-size:14px; color:#555; margin-bottom:8px;}
+  .record-card{
+    background:var(--card); border:1px solid var(--border); border-left:4px solid var(--accent);
+    border-radius:8px; padding:12px 14px; margin-bottom:10px;
+  }
+  .record-card .date{font-weight:bold; font-size:13px; margin-bottom:6px;}
+  .record-card .field-label{font-size:11px; color:var(--muted); margin-top:6px;}
+  .record-card .field-body{font-size:13px; white-space:pre-wrap; line-height:1.5;}
+  .record-card details.transcript{margin-top:8px;}
+  .record-card details.transcript summary{font-size:11px; color:var(--accent); cursor:pointer;}
+  .record-card details.transcript .field-body{
+    background:#f7f8fa; border-radius:6px; padding:8px; margin-top:4px; font-size:12px;
+  }
+  .record-card .actions{margin-top:8px; text-align:right;}
+  .record-card .actions button{
+    background:none; border:none; color:#999; cursor:pointer; font-size:12px; margin-left:8px;
+  }
+  .record-card .actions button:hover{color:#c00;}
+  .modal-overlay{
+    position:fixed; inset:0; background:#00000055; display:flex; align-items:center; justify-content:center; z-index:100;
+  }
+  .modal{
+    background:#fff; border-radius:8px; padding:20px; width:320px; max-width:90vw;
+  }
+  .modal h2{font-size:16px; margin-top:0;}
+  .modal label{display:block; font-size:12px; color:var(--muted); margin-top:10px; margin-bottom:4px;}
+  .modal input{width:100%; padding:8px; border:1px solid var(--border); border-radius:6px; font-size:13px;}
+  .modal .modal-actions{margin-top:16px; text-align:right;}
+  .modal .modal-actions button{padding:7px 14px; border-radius:6px; border:1px solid var(--border); background:#f5f5f5; cursor:pointer; font-size:13px; margin-left:6px;}
+  .modal .modal-actions button.primary{background:var(--accent); color:#fff; border:none;}
+  #importFile{display:none;}
+  .ai-panel{
+    background:#f3f7ff; border:1px dashed var(--accent); border-radius:8px;
+    padding:10px 12px; margin-bottom:6px;
+  }
+  .ai-panel .ai-title{font-size:13px; font-weight:bold; color:var(--accent-dark);}
+  .ai-panel .ai-note{font-size:11px; color:var(--muted); margin-top:2px;}
+  .ai-panel textarea{
+    width:100%; padding:8px; border:1px solid var(--border); border-radius:6px; font-size:13px;
+    font-family:inherit; resize:vertical; min-height:90px; margin-top:8px;
+  }
+  .ai-panel .ai-buttons{margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .ai-panel .ai-buttons button{
+    padding:7px 12px; border-radius:6px; border:1px solid var(--accent); background:#fff;
+    color:var(--accent); cursor:pointer; font-size:12px;
+  }
+  .ai-panel .ai-buttons button.primary{background:var(--accent); color:#fff;}
+  .ai-panel .ai-buttons button.recording{background:#c0392b; border-color:#c0392b; color:#fff;}
+  .ai-panel .ai-buttons button:disabled{opacity:.5; cursor:default;}
+  .ai-panel .ai-status{font-size:12px; color:var(--muted);}
+  .ai-panel .ai-status.error{color:#c0392b;}
+  .back-btn{display:none;}
+
+  /* スマホ：患者一覧と薬歴画面を切り替えて表示 */
+  @media (max-width: 700px){
+    header{padding:10px 12px;}
+    header h1{font-size:16px;}
+    header .tools button{margin-left:0; margin-right:6px;}
+    .layout{display:block; height:auto; min-height:0;}
+    .sidebar{width:100%; border-right:none;}
+    .layout.detail-open .sidebar{display:none;}
+    .layout:not(.detail-open) .main{display:none;}
+    .main{padding:12px;}
+    .patient-header{flex-direction:column; gap:10px;}
+    .patient-header button{margin:0 6px 0 0;}
+    .back-btn{
+      display:inline-block; background:none; border:none; color:var(--accent);
+      font-size:15px; padding:4px 0 10px; cursor:pointer;
+    }
+    /* iPhoneで入力時に画面が拡大されないよう16px以上にする */
+    input, textarea, .record-form input[type=date], .record-form textarea,
+    .modal input, .sidebar .search input, .ai-panel textarea{font-size:16px;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>薬歴メモ（ローカル保存版）</h1>
+  <div class="tools">
+    <button onclick="exportData()">バックアップ書き出し</button>
+    <button onclick="document.getElementById('importFile').click()">読み込み</button>
+    <input type="file" id="importFile" accept="application/json" onchange="importData(event)">
+  </div>
+</header>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="search">
+      <input type="text" id="searchBox" placeholder="患者名・薬歴内容で検索..." oninput="renderPatientList()">
+    </div>
+    <button class="add-btn" onclick="openPatientModal()">＋ 新しい患者を登録</button>
+    <div class="patient-list" id="patientList"></div>
+  </div>
+
+  <div class="main" id="mainArea">
+    <div class="empty-hint">左の一覧から患者を選択するか、新しく登録してください。</div>
+  </div>
+</div>
+
+<div id="modalRoot"></div>
+
+<script>
+const STORAGE_KEY = "yakureki_data_v1";
+
+function loadData(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return {patients:[]};
+    const parsed = JSON.parse(raw);
+    if(!parsed.patients) return {patients:[]};
+    return parsed;
+  }catch(e){
+    return {patients:[]};
+  }
+}
+function saveData(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }catch(e){
+    alert("保存に失敗しました。ブラウザのストレージ容量を確認してください。");
+  }
+}
+
+let state = loadData();
+let activePatientId = null;
+
+function uid(){
+  return Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+}
+
+function recordMatchesKeyword(record, keyword){
+  const fields = [
+    record.s, record.o, record.adherence, record.a, record.p, record.nextCheck,
+    record.conversation, record.assessment, record.transcript
+  ];
+  return fields.some(f => f && f.includes(keyword));
+}
+
+function renderPatientList(){
+  const listEl = document.getElementById('patientList');
+  const keyword = document.getElementById('searchBox').value.trim();
+  listEl.innerHTML = '';
+  const patients = state.patients
+    .filter(p => !keyword || p.name.includes(keyword) || p.records.some(r => recordMatchesKeyword(r, keyword)))
+    .sort((a,b) => a.name.localeCompare(b.name, 'ja'));
+
+  if(patients.length === 0){
+    listEl.innerHTML = '<div style="padding:14px;color:#999;font-size:12px;">該当する患者がいません</div>';
+    return;
+  }
+
+  patients.forEach(p => {
+    const div = document.createElement('div');
+    div.className = 'patient-item' + (p.id === activePatientId ? ' active' : '');
+    div.onclick = () => { activePatientId = p.id; renderPatientList(); renderMain(); };
+    const recCount = p.records.length;
+    const nameMatch = !keyword || p.name.includes(keyword);
+    const matchNote = (keyword && !nameMatch) ? '<div class="match-note">薬歴内に一致</div>' : '';
+    div.innerHTML = `
+      <div class="name">${escapeHtml(p.name)}</div>
+      <div class="sub">${p.birthdate ? escapeHtml(p.birthdate) + ' ・ ' : ''}記録${recCount}件</div>
+      ${matchNote}
+    `;
+    listEl.appendChild(div);
+  });
+}
+
+function renderMain(){
+  stopRecording();
+  const mainEl = document.getElementById('mainArea');
+  const patient = state.patients.find(p => p.id === activePatientId);
+  document.querySelector('.layout').classList.toggle('detail-open', !!patient);
+  if(!patient){
+    mainEl.innerHTML = '<div class="empty-hint">左の一覧から患者を選択するか、新しく登録してください。</div>';
+    return;
+  }
+
+  const sortedRecords = [...patient.records].sort((a,b) => b.date.localeCompare(a.date));
+  // Chrome内蔵AIが無い環境（iPhoneなど）では録音・文字起こしのみ
+  const aiSupported = typeof LanguageModel !== 'undefined';
+
+  mainEl.innerHTML = `
+    <button class="back-btn" onclick="backToList()">‹ 患者一覧に戻る</button>
+    <div class="patient-header">
+      <div>
+        <div class="name">${escapeHtml(patient.name)}</div>
+        <div class="info">
+          ${patient.birthdate ? '生年月日: ' + escapeHtml(patient.birthdate) : ''}
+        </div>
+        ${patient.allergy ? `<div class="alert-line">アレルギー歴：${escapeHtml(patient.allergy)}</div>` : ''}
+        ${patient.adverseReaction ? `<div class="alert-line">副作用歴：${escapeHtml(patient.adverseReaction)}</div>` : ''}
+        ${patient.concomitantMeds ? `<div class="info-line"><span class="info-label">併用薬：</span>${escapeHtml(patient.concomitantMeds)}</div>` : ''}
+        ${patient.note ? `<div class="info-line"><span class="info-label">備考：</span>${escapeHtml(patient.note)}</div>` : ''}
+      </div>
+      <div>
+        <button onclick="openPatientModal('${patient.id}')">患者情報を編集</button>
+        <button onclick="deletePatient('${patient.id}')">患者を削除</button>
+      </div>
+    </div>
+
+    <div class="record-form">
+      <div class="ai-panel">
+        ${aiSupported ? `
+        <div class="ai-title">AI下書き（会話→SOAP）</div>
+        <div class="ai-note">録音するか会話を貼り付けて「SOAP下書きを作成」を押すと、下の各欄に下書きが入ります。AIはこのパソコン内で動くため無料で、会話内容は外部に送信されません（録音の文字起こしのみGoogleの音声認識を使用）。AIの下書きは誤りを含むことがあるため、必ず内容を確認・修正してから保存してください。文字起こしの全文も「会話記録」として一緒に保存されます。</div>` : `
+        <div class="ai-title">録音・文字起こし</div>
+        <div class="ai-note">「録音開始」で会話を文字起こしできます。文字起こしの全文は「会話記録」として薬歴と一緒に保存されます。（AIによるSOAP下書きはパソコン版Chromeでのみ使えます）</div>`}
+        <textarea id="aiTranscript" placeholder="ここに服薬指導の会話が文字起こしされます（手入力・貼り付けも可）"></textarea>
+        <div class="ai-buttons">
+          <button id="recBtn" onclick="toggleRecording()">● 録音開始</button>
+          ${aiSupported ? `<button class="primary" id="aiGenBtn" onclick="generateSoapDraft('${patient.id}')">SOAP下書きを作成</button>` : ''}
+          <span class="ai-status" id="aiStatus"></span>
+        </div>
+      </div>
+      <label>日付</label>
+      <input type="date" id="newDate" value="${todayStr()}">
+      <label>S（患者の訴え・会話内容）</label>
+      <textarea id="newS" placeholder="患者さんの訴えや会話内容を入力"></textarea>
+      <label>O（客観的情報・観察所見）</label>
+      <textarea id="newO" placeholder="検査値、外観、来局時の様子など客観的情報を入力"></textarea>
+      <label>服薬状況（アドヒアランス・残薬など）</label>
+      <textarea id="newAdherence" placeholder="服薬状況や残薬の有無を入力"></textarea>
+      <label>A（評価・考察）</label>
+      <textarea id="newA" placeholder="薬剤師としての評価・考察を入力"></textarea>
+      <label>P（指導計画）</label>
+      <textarea id="newP" placeholder="実施した指導内容・今後の方針を入力"></textarea>
+      <label>次回確認事項</label>
+      <textarea id="newNextCheck" placeholder="次回来局時に確認すること"></textarea>
+      <button class="save-btn" onclick="addRecord('${patient.id}')">この内容を保存</button>
+    </div>
+
+    <div class="record-list">
+      <h3>薬歴一覧（${sortedRecords.length}件）</h3>
+      ${sortedRecords.length === 0 ? '<div style="color:#999;font-size:13px;">まだ記録がありません</div>' : ''}
+      ${sortedRecords.map(r => `
+        <div class="record-card">
+          <div class="date">${escapeHtml(r.date)}</div>
+          ${fieldBlock('S（患者の訴え・会話内容）', r.s !== undefined ? r.s : r.conversation)}
+          ${fieldBlock('O（客観的情報・観察所見）', r.o)}
+          ${fieldBlock('服薬状況', r.adherence)}
+          ${fieldBlock('A（評価・考察）', r.a !== undefined ? r.a : r.assessment)}
+          ${fieldBlock('P（指導計画）', r.p)}
+          ${fieldBlock('次回確認事項', r.nextCheck)}
+          ${r.transcript ? `
+            <details class="transcript">
+              <summary>会話記録（文字起こし）を表示</summary>
+              <div class="field-body">${escapeHtml(r.transcript)}</div>
+            </details>` : ''}
+          <div class="actions">
+            <button onclick="deleteRecord('${patient.id}','${r.id}')">削除</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function backToList(){
+  activePatientId = null;
+  renderPatientList();
+  renderMain();
+  window.scrollTo(0, 0);
+}
+
+function fieldBlock(label, value){
+  if(!value) return '';
+  return `<div class="field-label">${escapeHtml(label)}</div><div class="field-body">${escapeHtml(value)}</div>`;
+}
+
+function todayStr(){
+  const d = new Date();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+function escapeHtml(str){
+  if(str === undefined || str === null) return '';
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function addRecord(patientId){
+  const patient = state.patients.find(p => p.id === patientId);
+  if(!patient) return;
+  const date = document.getElementById('newDate').value || todayStr();
+  const s = document.getElementById('newS').value.trim();
+  const o = document.getElementById('newO').value.trim();
+  const adherence = document.getElementById('newAdherence').value.trim();
+  const a = document.getElementById('newA').value.trim();
+  const p = document.getElementById('newP').value.trim();
+  const nextCheck = document.getElementById('newNextCheck').value.trim();
+  const transcript = document.getElementById('aiTranscript').value.trim();
+  if(!s && !o && !adherence && !a && !p && !nextCheck && !transcript){
+    alert("いずれかの項目を入力してください。");
+    return;
+  }
+  patient.records.push({ id: uid(), date, s, o, adherence, a, p, nextCheck, transcript });
+  saveData();
+  renderPatientList();
+  renderMain();
+}
+
+function deleteRecord(patientId, recordId){
+  if(!confirm("この記録を削除しますか？")) return;
+  const patient = state.patients.find(p => p.id === patientId);
+  if(!patient) return;
+  patient.records = patient.records.filter(r => r.id !== recordId);
+  saveData();
+  renderPatientList();
+  renderMain();
+}
+
+function deletePatient(patientId){
+  const patient = state.patients.find(p => p.id === patientId);
+  if(!patient) return;
+  if(!confirm(`「${patient.name}」さんの情報と薬歴をすべて削除しますか？この操作は取り消せません。`)) return;
+  state.patients = state.patients.filter(p => p.id !== patientId);
+  if(activePatientId === patientId) activePatientId = null;
+  saveData();
+  renderPatientList();
+  renderMain();
+}
+
+function openPatientModal(patientId){
+  const editing = !!patientId;
+  const patient = editing ? state.patients.find(p => p.id === patientId) : null;
+  const modalRoot = document.getElementById('modalRoot');
+  modalRoot.innerHTML = `
+    <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <h2>${editing ? '患者情報の編集' : '新しい患者を登録'}</h2>
+        <label>氏名 <span style="color:#c00;">*</span></label>
+        <input type="text" id="modalName" value="${patient ? escapeHtml(patient.name) : ''}">
+        <label>生年月日</label>
+        <input type="date" id="modalBirthdate" value="${patient ? escapeHtml(patient.birthdate||'') : ''}">
+        <label>アレルギー歴</label>
+        <input type="text" id="modalAllergy" value="${patient ? escapeHtml(patient.allergy||'') : ''}" placeholder="例：ペニシリン系">
+        <label>副作用歴</label>
+        <input type="text" id="modalAdverseReaction" value="${patient ? escapeHtml(patient.adverseReaction||'') : ''}" placeholder="例：〇〇服用時に発疹">
+        <label>併用薬（他科の薬・OTC・サプリ等）</label>
+        <input type="text" id="modalConcomitantMeds" value="${patient ? escapeHtml(patient.concomitantMeds||'') : ''}" placeholder="任意">
+        <label>備考</label>
+        <input type="text" id="modalNote" value="${patient ? escapeHtml(patient.note||'') : ''}" placeholder="任意">
+        <div class="modal-actions">
+          <button onclick="closeModal()">キャンセル</button>
+          <button class="primary" onclick="savePatient(${editing ? `'${patientId}'` : 'null'})">保存</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function closeModal(){
+  document.getElementById('modalRoot').innerHTML = '';
+}
+
+function savePatient(patientId){
+  const name = document.getElementById('modalName').value.trim();
+  const birthdate = document.getElementById('modalBirthdate').value;
+  const allergy = document.getElementById('modalAllergy').value.trim();
+  const adverseReaction = document.getElementById('modalAdverseReaction').value.trim();
+  const concomitantMeds = document.getElementById('modalConcomitantMeds').value.trim();
+  const note = document.getElementById('modalNote').value.trim();
+  if(!name){
+    alert("氏名を入力してください。");
+    return;
+  }
+  if(patientId){
+    const patient = state.patients.find(p => p.id === patientId);
+    patient.name = name;
+    patient.birthdate = birthdate;
+    patient.allergy = allergy;
+    patient.adverseReaction = adverseReaction;
+    patient.concomitantMeds = concomitantMeds;
+    patient.note = note;
+  }else{
+    const newPatient = { id: uid(), name, birthdate, allergy, adverseReaction, concomitantMeds, note, records: [] };
+    state.patients.push(newPatient);
+    activePatientId = newPatient.id;
+  }
+  saveData();
+  closeModal();
+  renderPatientList();
+  renderMain();
+}
+
+function exportData(){
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const d = todayStr();
+  a.href = url;
+  a.download = `薬歴バックアップ_${d}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const imported = JSON.parse(reader.result);
+      if(!imported.patients) throw new Error("invalid");
+      if(!confirm("現在のデータを、読み込んだバックアップの内容で上書きします。よろしいですか？")) return;
+      state = imported;
+      activePatientId = null;
+      saveData();
+      renderPatientList();
+      renderMain();
+    }catch(e){
+      alert("ファイルの読み込みに失敗しました。正しいバックアップファイルか確認してください。");
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+// ===== AI下書き（会話→SOAP） =====
+// Chrome内蔵AI（Gemini Nano）をパソコン内で動かす。無料・外部送信なし
+const AI_LANG_OPTIONS = {
+  expectedInputs: [{type: 'text', languages: ['ja']}],
+  expectedOutputs: [{type: 'text', languages: ['ja']}]
+};
+
+function setAiStatus(msg, isError){
+  const el = document.getElementById('aiStatus');
+  if(!el) return;
+  el.textContent = msg;
+  el.className = 'ai-status' + (isError ? ' error' : '');
+}
+
+// --- 音声入力（Chromeの音声認識） ---
+let recognition = null;
+let isRecording = false;
+
+function toggleRecording(){
+  if(isRecording) stopRecording();
+  else startRecording();
+}
+
+function startRecording(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){
+    setAiStatus("このブラウザでは録音ボタンを使えません。iPhoneの場合は、入力欄をタップしてキーボードのマイクボタンで音声入力してください。", true);
+    return;
+  }
+  const transcriptEl = document.getElementById('aiTranscript');
+  let baseText = transcriptEl.value;
+  recognition = new SR();
+  recognition.lang = 'ja-JP';
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.onresult = (event) => {
+    let interim = '';
+    for(let i = event.resultIndex; i < event.results.length; i++){
+      const text = event.results[i][0].transcript;
+      if(event.results[i].isFinal){
+        baseText += (baseText && !baseText.endsWith('\n') ? '\n' : '') + text;
+      }else{
+        interim += text;
+      }
+    }
+    transcriptEl.value = baseText + (interim ? (baseText ? '\n' : '') + interim : '');
+  };
+  recognition.onerror = (event) => {
+    if(event.error === 'not-allowed' || event.error === 'service-not-allowed'){
+      setAiStatus("マイクの使用が許可されていません。ブラウザの設定を確認してください。", true);
+      stopRecording();
+    }
+  };
+  // 無音が続くと自動で止まるため、録音中なら再開する
+  recognition.onend = () => {
+    if(isRecording){
+      baseText = transcriptEl.value;
+      try{ recognition.start(); }catch(e){ stopRecording(); }
+    }
+  };
+  try{
+    recognition.start();
+  }catch(e){
+    setAiStatus("録音を開始できませんでした。", true);
+    return;
+  }
+  isRecording = true;
+  const btn = document.getElementById('recBtn');
+  btn.textContent = '■ 録音停止';
+  btn.classList.add('recording');
+  setAiStatus("録音中…");
+}
+
+function stopRecording(){
+  if(!isRecording) return;
+  isRecording = false;
+  if(recognition){
+    try{ recognition.stop(); }catch(e){}
+    recognition = null;
+  }
+  const btn = document.getElementById('recBtn');
+  if(btn){
+    btn.textContent = '● 録音開始';
+    btn.classList.remove('recording');
+  }
+  setAiStatus("");
+}
+
+// --- SOAP下書き生成 ---
+const SOAP_SYSTEM_PROMPT = `あなたは保険薬局の薬剤師の薬歴作成を補助するアシスタントです。
+服薬指導時の会話の文字起こしから、薬歴（SOAP形式）の下書きを作成してください。
+
+ルール：
+- 文字起こしは音声認識によるもので、話者の区別がなく誤変換を含むことがあります。文脈から薬剤師と患者の発言を判断してください。
+- 会話に出てこない情報を推測で書き足さないでください。該当する情報がない項目は空文字にしてください。
+- 各項目は薬歴として簡潔に、箇条書き（「・」始まり）で書いてください。
+- s: 患者の訴え・発言内容（主観的情報）
+- o: 客観的情報（検査値、処方内容の変更、外観や様子など、会話から確認できるもの）
+- adherence: 服薬状況（飲み忘れ、残薬、飲み方など）
+- a: 薬剤師としての評価・考察
+- p: 実施した指導内容・今後の方針
+- nextCheck: 次回来局時に確認すべきこと
+- 患者情報（アレルギー歴・副作用歴・併用薬）は参考情報です。会話内容と関連する場合のみ考察に反映してください。`;
+
+const SOAP_SCHEMA = {
+  type: "object",
+  properties: {
+    s: {type: "string"},
+    o: {type: "string"},
+    adherence: {type: "string"},
+    a: {type: "string"},
+    p: {type: "string"},
+    nextCheck: {type: "string"}
+  },
+  required: ["s", "o", "adherence", "a", "p", "nextCheck"],
+  additionalProperties: false
+};
+
+async function generateSoapDraft(patientId){
+  const patient = state.patients.find(p => p.id === patientId);
+  if(!patient) return;
+  stopRecording();
+  const transcript = document.getElementById('aiTranscript').value.trim();
+  if(!transcript){
+    setAiStatus("会話の文字起こしが空です。録音するか、会話を入力してください。", true);
+    return;
+  }
+  if(typeof LanguageModel === 'undefined'){
+    setAiStatus("このブラウザではAI機能を使えません。パソコン版のGoogle Chrome（最新版）で開いてください。", true);
+    return;
+  }
+
+  const btn = document.getElementById('aiGenBtn');
+  btn.disabled = true;
+  let session = null;
+
+  try{
+    const availability = await LanguageModel.availability(AI_LANG_OPTIONS);
+    if(availability === 'unavailable'){
+      throw new Error("このパソコンではAI機能を使えません（メモリ16GB以上、空き容量22GB以上などの条件があります）。");
+    }
+    // 初回はAI本体（約4GB）のダウンロードが必要。ボタン操作の直後に呼ぶ必要がある
+    if(availability !== 'available') setAiStatus("AIの準備中（初回のみ・数分〜数十分かかります）…");
+    session = await LanguageModel.create({
+      ...AI_LANG_OPTIONS,
+      initialPrompts: [{role: 'system', content: SOAP_SYSTEM_PROMPT}],
+      monitor(m){
+        m.addEventListener('downloadprogress', e => {
+          setAiStatus(`AIの準備中（初回のみ）… ${Math.round(e.loaded * 100)}%`);
+        });
+      }
+    });
+
+    const fieldIds = {s:'newS', o:'newO', adherence:'newAdherence', a:'newA', p:'newP', nextCheck:'newNextCheck'};
+    const hasInput = Object.values(fieldIds).some(id => document.getElementById(id).value.trim());
+    if(hasInput && !confirm("入力済みの欄をAIの下書きで上書きします。よろしいですか？")){
+      setAiStatus("");
+      return;
+    }
+
+    const patientInfo = [
+      `アレルギー歴：${patient.allergy || 'なし／未登録'}`,
+      `副作用歴：${patient.adverseReaction || 'なし／未登録'}`,
+      `併用薬：${patient.concomitantMeds || 'なし／未登録'}`
+    ].join('\n');
+
+    setAiStatus("AIが下書きを作成中…（1分ほどかかることがあります）");
+    const result = await session.prompt(
+      `【患者情報】\n${patientInfo}\n\n【服薬指導の会話（文字起こし）】\n${transcript}`,
+      {responseConstraint: SOAP_SCHEMA}
+    );
+    const soap = JSON.parse(result);
+
+    Object.entries(fieldIds).forEach(([key, id]) => {
+      const el = document.getElementById(id);
+      if(el) el.value = soap[key] || '';
+    });
+    setAiStatus("下書きを入力しました。内容を確認・修正してから保存してください。");
+  }catch(e){
+    let msg = e.message;
+    if(e.name === 'NotAllowedError') msg = "AIの準備を開始できませんでした。もう一度「SOAP下書きを作成」を押してください。";
+    else if(e.name === 'QuotaExceededError') msg = "会話が長すぎます。会話を短くして再実行してください。";
+    else if(e instanceof SyntaxError) msg = "AIの出力を読み取れませんでした。もう一度実行してください。";
+    setAiStatus(msg || "AIの処理に失敗しました。もう一度実行してください。", true);
+  }finally{
+    if(session) session.destroy();
+    btn.disabled = false;
+  }
+}
+
+// インターネット上で開いたときだけ、オフライン用の仕組みを登録（パソコンでファイルを直接開く場合は不要）
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+renderPatientList();
+renderMain();
+</script>
+
+</body>
+</html>
